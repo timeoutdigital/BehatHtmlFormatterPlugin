@@ -186,8 +186,10 @@
                                                 <b>{{ step.keyword }}</b> {{ step.text }}
                                                 {% if printStepArgs is not null %}
                                                     {% for argument in step.arguments %}
-                                                        <p style="padding-left:0.5em; overflow-x:scroll; white-space:nowrap; font-family:monospace">{{ argument | nl2br }}</p>
-                                                    {% endfor %}
+                                                       {% if argument is not iterable %}
+                                                            <p style="padding-left:0.5em; overflow-x:scroll; white-space:nowrap; font-family:monospace">{{ argument | nl2br }}</p>
+                                                       {% endif %}
+						     {% endfor %}
                                                 {% endif %}
                                                 {% if step.exception is not null %}
                                                     <br>
