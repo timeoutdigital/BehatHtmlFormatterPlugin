@@ -27,9 +27,15 @@ class Scenario
     private $passed;
 
     /**
+     * @var bool
+     */
+    private $pending;
+
+    /**
      * @var Step[]
      */
     private $steps;
+    private $screenshotPath;
 
     /**
      * @return mixed
@@ -121,6 +127,22 @@ class Scenario
     }
 
     /**
+     * @return boolean
+     */
+    public function isPending()
+    {
+        return $this->pending;
+    }
+
+    /**
+     * @param boolean $pending
+     */
+    public function setPending($pending)
+    {
+        $this->pending = $pending;
+    }
+
+    /**
      * @return Step[]
      */
     public function getSteps()
@@ -164,5 +186,22 @@ class Scenario
     {
         //behat
         return $this->loopCount > 0 ? sizeof($this->steps)/$this->loopCount : sizeof($this->steps);
+    }
+
+    public function setScreenshotPath($string)
+    {
+        $this->screenshotPath = $string;
+    }
+
+    /**
+     * @return mixed
+     */
+    public function getScreenshotPath()
+    {
+        if (file_exists($this->screenshotPath)) {
+            return "file://" . realpath($this->screenshotPath);
+        }
+
+        return false;
     }
 }

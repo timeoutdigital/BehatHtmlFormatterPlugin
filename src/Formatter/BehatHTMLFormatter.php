@@ -9,7 +9,9 @@ use Behat\Behat\EventDispatcher\Event\AfterStepTested;
 use Behat\Behat\EventDispatcher\Event\BeforeFeatureTested;
 use Behat\Behat\EventDispatcher\Event\BeforeOutlineTested;
 use Behat\Behat\EventDispatcher\Event\BeforeScenarioTested;
+use Behat\Behat\Tester\Exception\PendingException;
 use Behat\Behat\Tester\Result\ExecutedStepResult;
+use Behat\Behat\Tester\Result\StepResult;
 use Behat\Testwork\Counter\Memory;
 use Behat\Testwork\Counter\Timer;
 use Behat\Testwork\EventDispatcher\Event\AfterExerciseCompleted;
@@ -120,42 +122,47 @@ class BehatHTMLFormatter implements Formatter {
     /**
      * @var Scenario[]
      */
-    private $failedScenarios;
+    private $failedScenarios = [];
 
     /**
      * @var Scenario[]
      */
-    private $passedScenarios;
+    private $pendingScenarios = [];
+
+    /**
+     * @var Scenario[]
+     */
+    private $passedScenarios = [];
 
     /**
      * @var Feature[]
      */
-    private $failedFeatures;
+    private $failedFeatures = [];
 
     /**
      * @var Feature[]
      */
-    private $passedFeatures;
+    private $passedFeatures = [];
 
     /**
      * @var Step[]
      */
-    private $failedSteps;
+    private $failedSteps = [];
 
     /**
      * @var Step[]
      */
-    private $passedSteps;
+    private $passedSteps = [];
 
     /**
      * @var Step[]
      */
-    private $pendingSteps;
+    private $pendingSteps = [];
 
     /**
      * @var Step[]
      */
-    private $skippedSteps;
+    private $skippedSteps = [];
 
     //</editor-fold>
 
@@ -329,6 +336,11 @@ class BehatHTMLFormatter implements Formatter {
         return $this->failedScenarios;
     }
 
+    public function getPendingScenarios()
+    {
+        return $this->pendingScenarios;
+    }
+
     public function getPassedScenarios()
     {
         return $this->passedScenarios;
@@ -457,6 +469,12 @@ class BehatHTMLFormatter implements Formatter {
         $scenario->setTags($event->getScenario()->getTags());
         $scenario->setLine($event->getScenario()->getLine());
         $scenario->setScreenshotName($event->getScenario()->getTitle());
+        $scenario->setScreenshotPath(
+            $this->printer->getOutputPath() .
+            '/assets/screenshots/' .
+            preg_replace('/\W/', '', $event->getFeature()->getTitle()) . '/'.
+            preg_replace('/\W/', '', $event->getScenario()->getTitle()) . '.png'
+        );
         $this->currentScenario = $scenario;
 
         $print = $this->renderer->renderBeforeScenario($this);
@@ -470,16 +488,22 @@ class BehatHTMLFormatter implements Formatter {
     {
         $scenarioPassed = $event->getTestResult()->isPassed();
 
-        if($scenarioPassed) {
+        if ($scenarioPassed) {
             $this->passedScenarios[] = $this->currentScenario;
             $this->currentFeature->addPassedScenario();
+            $this->currentScenario->setPassed(true);
+        } elseif ($event->getTestResult()->getResultCode() == StepResult::PENDING) {
+            $this->pendingScenarios[] = $this->currentScenario;
+            $this->currentFeature->addPendingScenario();
+            $this->currentScenario->setPending(true);
         } else {
             $this->failedScenarios[] = $this->currentScenario;
             $this->currentFeature->addFailedScenario();
+            $this->currentScenario->setPassed(false);
+            $this->currentScenario->setPending(false);
         }
 
         $this->currentScenario->setLoopCount(1);
-        $this->currentScenario->setPassed($event->getTestResult()->isPassed());
         $this->currentFeature->addScenario($this->currentScenario);
 
         $print = $this->renderer->renderAfterScenario($this);
@@ -508,16 +532,22 @@ class BehatHTMLFormatter implements Formatter {
     {
         $scenarioPassed = $event->getTestResult()->isPassed();
 
-        if($scenarioPassed) {
+        if ($scenarioPassed) {
             $this->passedScenarios[] = $this->currentScenario;
             $this->currentFeature->addPassedScenario();
+            $this->currentScenario->setPassed(true);
+        } elseif ($event->getTestResult()->getResultCode() == StepResult::PENDING) {
+            $this->pendingScenarios[] = $this->currentScenario;
+            $this->currentFeature->addPendingScenario();
+            $this->currentScenario->setPending(true);
         } else {
             $this->failedScenarios[] = $this->currentScenario;
             $this->currentFeature->addFailedScenario();
+            $this->currentScenario->setPassed(false);
+            $this->currentScenario->setPending(false);
         }
 
         $this->currentScenario->setLoopCount(sizeof($event->getTestResult()));
-        $this->currentScenario->setPassed($event->getTestResult()->isPassed());
         $this->currentFeature->addScenario($this->currentScenario);
 
         $print = $this->renderer->renderAfterOutline($this);
@@ -570,8 +600,12 @@ class BehatHTMLFormatter implements Formatter {
                     $step->setDefinition($result->getStepDefinition());
                     $exception = $result->getException();
                     if($exception) {
-                        $step->setException($exception->getMessage());
-                        $this->failedSteps[] = $step;
+                        if ($exception instanceof PendingException) {
+                            $this->pendingSteps[] = $step;
+                        } else {
+                            $step->setException($exception->getMessage());
+                            $this->failedSteps[] = $step;
+                        }
                     } else {
                         $step->setOutput($result->getCallResult()->getStdOut());
                         $this->passedSteps[] = $step;
